@@ -3,6 +3,7 @@ import { uploadSchedulePdf } from '@/lib/storage';
 import { updateSite } from '@/lib/data/sites';
 import { archivePdf } from '@/lib/localArchive';
 
+export const runtime = 'nodejs';
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
