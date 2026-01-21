@@ -1,22 +1,40 @@
 import { NextResponse } from "next/server";
 import { getSiteById } from "@/lib/data/sites";
 
-export async function GET(
-  _req: Request,
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
+
+export async function PATCH(
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const body = await req.json();
 
-  try {
-    const site = await getSiteById(id);
-    if (!site) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-    return NextResponse.json({ site });
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? "Failed" },
-      { status: 500 }
-    );
+  const {
+    address,
+    manager_name,
+    status,
+    client_name,
+    contractor_name,
+  } = body;
+
+  const { data, error } = await supabaseAdmin
+    .from('sites')
+    .update({
+      address,
+      manager_name,
+      status,
+      client_name,
+      contractor_name,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  return NextResponse.json({ site: data });
 }
