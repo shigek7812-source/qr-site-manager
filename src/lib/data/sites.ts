@@ -48,13 +48,13 @@ export async function getSiteByCode(code: string) {
 
 export async function getSiteById(id: string) {
   const { data, error } = await supabaseAdmin
-    .from('sites')
-    .select('*')
-    .eq('id', id)
-    .single();
+    .from("sites")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
 
   if (error) throw error;
-  return data as Site;
+  return data;
 }
 
 export async function createSite(input: CreateSiteInput) {
