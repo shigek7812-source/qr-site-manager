@@ -1,8 +1,27 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# QR Site Manager
 
-## Getting Started
+A Next.js + Supabase application for managing site information, resources, and photos, accessible via QR codes (URLs).
 
-First, run the development server:
+## Setup Instructions
+
+### 1. Environment Variables
+
+Ensure `.env.local` exists in the root directory:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+ADMIN_PASS=1234
+```
+
+### 2. Database Setup
+
+Run the contents of `schema.sql` in your Supabase project's SQL Editor. This will:
+- Create `sites`, `resources`, `changelog`, `photos` tables.
+- Enable RLS (Prototype mode: allows all operations).
+- Create necessary indexes.
+
+### 3. Run Development Server
 
 ```bash
 npm run dev
@@ -10,27 +29,29 @@ npm run dev
 yarn dev
 # or
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) with your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## URL Routes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Public Site**: `/s/[code]` (e.g., `/s/demo`)
+  - Mobile-optimized view of resources and updates.
+- **Public Photos**: `/s/[code]/photos`
+  - Gallery view with filters.
+- **Admin Login**: `/admin/login`
+- **Admin Dashboard**: `/admin`
+  - Manage sites, resources, and photos.
 
-## Learn More
+## Demo Walkthrough
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Go to `/admin/login` and enter the passcode `1234`.
+2. Click "Create New Site".
+   - Code: `demo`
+   - Name: `Demo Site`
+   - Address: `123 Main St`
+3. In the Site list, click "Demo Site" to edit.
+4. Add a Resource (e.g., Schedule).
+5. Add a Changelog entry.
+6. Click "Manage Photos" and add some photo URLs.
+7. Visit `/s/demo` to see the public view.
