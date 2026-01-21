@@ -1,14 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createSite } from '@/lib/data/sites';
+import { NextResponse } from "next/server";
+import { listSites } from "@/lib/data/sites";
 
-export async function POST(req: NextRequest) {
+export const dynamic = "force-dynamic";
+
+export async function GET(_req: Request) {
   try {
-    const body = await req.json();
-    const site = await createSite(body);
-    return NextResponse.json({ ok: true, site });
+    const sites = await listSites();
+    return NextResponse.json({ sites });
   } catch (e: any) {
     return NextResponse.json(
-      { error: e.message || 'failed' },
+      { error: e?.message ?? "Failed" },
       { status: 500 }
     );
   }
