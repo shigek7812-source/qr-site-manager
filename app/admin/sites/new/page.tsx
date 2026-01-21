@@ -1,6 +1,5 @@
 'use client';
 
-import { createSite } from '@/lib/data/sites';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -22,22 +21,35 @@ export default function NewSitePage() {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
+  setError('');
 
-        try {
-            await createSite(formData);
-            router.push('/admin');
-            router.refresh();
-        } catch (err: any) {
-            console.error(err);
-            setError(err.message || 'Failed to create site');
-        } finally {
-            setLoading(false);
-        }
-    };
+  try {
+    const res = await fetch('/api/admin/sites', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(formData),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to create site');
+    }
+
+    router.push('/admin');
+    router.refresh();
+  } catch (err: any) {
+    console.error(err);
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
     return (
         <div className="max-w-2xl mx-auto">
