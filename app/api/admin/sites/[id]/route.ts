@@ -1,36 +1,32 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSiteById, updateSite } from "@/lib/data/sites";
 
 export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+
   try {
-    const site = await getSiteById(params.id);
-    if (!site) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    const site = await getSiteById(id);
+    if (!site) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json({ site });
   } catch (e: any) {
-    return NextResponse.json(
-      { error: e.message ?? "Failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: e.message ?? "Failed" }, { status: 500 });
   }
 }
 
 export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+
   try {
     const body = await request.json();
-    const site = await updateSite(params.id, body);
+    const site = await updateSite(id, body);
     return NextResponse.json({ site });
   } catch (e: any) {
-    return NextResponse.json(
-      { error: e.message ?? "Failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: e.message ?? "Failed" }, { status: 500 });
   }
 }
