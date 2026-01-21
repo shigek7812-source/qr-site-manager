@@ -62,16 +62,11 @@ export default function PublicPhotosClient({ code }: { code: string }) {
   if (error) return <div className="p-6 text-red-600">{error}</div>;
   if (!site) return <div className="p-6">Not found</div>;
 
-  return (
-    <div className="p-6">
-      <h1 className="text-xl font-bold">{site.name}</h1>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        {photos.map((p) => (
-          <a key={p.id} href={p.url} target="_blank" rel="noreferrer">
-            <img src={p.url} alt="" className="w-full rounded border" />
-          </a>
-        ))}
-      </div>
-    </div>
-  );
+ 
+return (
+  <div style={{ padding: 24 }}>
+    <h1>現場コード：{code}</h1>
+    <p>ここに写真や図面が並びます</p>
+  </div>
+);
 }
