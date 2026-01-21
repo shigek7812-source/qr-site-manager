@@ -1,10 +1,34 @@
-import { listSites } from '@/lib/data/sites';
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import SiteQrActions from './SiteQrActions';
 
-export const dynamic = 'force-dynamic';
+type Site = any;
 
-export default async function AdminDashboard() {
-  const sites = await listSites();
+export default function AdminDashboard() {
+  const [sites, setSites] = useState<Site[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch('/api/admin/sites');
+        if (!res.ok) throw new Error('failed');
+        const json = await res.json();
+        setSites(json.sites);
+      } catch (e) {
+        setError('現場一覧の取得に失敗しました');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  if (loading) return <p className="p-6">読み込み中...</p>;
+  if (error) return <p className="p-6 text-red-600">{error}</p>;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -18,75 +42,37 @@ export default async function AdminDashboard() {
 
         <Link
           href="/admin/sites/new"
-          className="inline-flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-black transition shadow-sm"
+          className="inline-flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg"
         >
-          <span className="text-lg leading-none">＋</span>
-          新規現場作成
+          ＋ 新規現場作成
         </Link>
       </div>
 
-      <div className="bg-white shadow-sm ring-1 ring-gray-200 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <p className="text-sm font-medium text-gray-700">
-            登録現場：<span className="font-semibold text-gray-900">{sites.length}</span> 件
-          </p>
-          <p className="text-xs text-gray-400">クリックで詳細へ</p>
-        </div>
-
-        <ul role="list" className="divide-y divide-gray-100">
-          {sites.length === 0 ? (
-            <li className="px-6 py-10 text-center">
-              <p className="text-gray-700 font-medium">まだ現場がありません</p>
-              <p className="text-sm text-gray-500 mt-1">
-                右上の「新規現場作成」から1件作ってみましょう。
-              </p>
-            </li>
-          ) : (
-            sites.map((site) => (
-              <li key={site.id}>
+      <ul className="divide-y divide-gray-100 bg-white rounded-xl ring-1 ring-gray-200">
+        {sites.map((site) => (
+          <li key={site.id} className="px-5 py-4 hover:bg-gray-50">
+            <div className="flex justify-between">
+              <div>
                 <Link
                   href={`/admin/sites/${site.id}`}
-                  className="block hover:bg-gray-50 transition"
+                  className="font-semibold hover:underline"
                 >
-                  <div className="px-5 py-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <p className="text-base font-semibold text-gray-900 truncate">
-                          {site.name}
-                        </p>
-
-                        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
-                          <span>
-                            住所：{site.address || '未登録'}
-                          </span>
-                          <span className="text-gray-300">|</span>
-                          <span>
-                            管理者：{site.manager_name || '未設定'}
-                            {site.manager_phone ? `（${site.manager_phone}）` : ''}
-                          </span>
-                        </div>
-
-                        <p className="mt-2 text-sm text-gray-500 line-clamp-2">
-                          {site.notes || 'メモなし'}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
-                          {site.code}
-                        </span>
-                        <p className="text-xs text-gray-400">
-                          更新日：{new Date(site.updated_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  {site.name}
                 </Link>
-              </li>
-            ))
-          )}
-        </ul>
-      </div>
+                <div className="text-sm text-gray-600 mt-1">
+                住所：{site.address || '未登録'} | 管理者：{site.manager_name || '未設定'}
+ | 状況：{site.status || '未設定'} | 施主：{site.client_name || '未設定'} | 元請：{site.contractor_name || '未設定'}
+                </div>
+                <SiteQrActions siteCode={site.code} />
+              </div>
+
+              <div className="text-xs text-gray-400">
+                更新日：{new Date(site.updated_at).toLocaleDateString()}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
