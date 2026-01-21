@@ -2,55 +2,68 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import QRCode from 'qrcode';
-import { getSiteById } from '@/lib/data/sites';
 import fs from 'fs/promises';
 import path from 'path';
+import { getSiteById } from '@/lib/data/sites';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const rightMargin = 48;
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params;
-
+    /* =========================
+       1. 現場データ取得
+    ========================= */
+    const { id } = params;
     const site = await getSiteById(id);
     if (!site) {
-      throw new Error('site not found');
+      return NextResponse.json({ error: 'site not found' }, { status: 404 });
     }
 
     const siteName = site.name;
 
-    // QRリンク先
-    const origin = process.env.PUBLIC_BASE_URL ?? req.nextUrl.origin;
+    /* =========================
+       2. QRリンク生成
+    ========================= */
+    const origin =
+      process.env.PUBLIC_BASE_URL ??
+      process.env.NEXT_PUBLIC_APP_BASE_URL ??
+      req.nextUrl.origin;
+
     const targetUrl = `${origin}/s/${encodeURIComponent(site.code ?? id)}`;
 
-    // QRコード生成
-    const qrDataUrl = await QRCode.toDataURL(targetUrl, { margin: 0, scale: 8 });
+    const qrDataUrl = await QRCode.toDataURL(targetUrl, {
+      margin: 1,
+      scale: 6,
+    });
     const pngBytes = Buffer.from(qrDataUrl.split(',')[1], 'base64');
 
-    // PDF作成
+    /* =========================
+       3. PDF作成（A4）
+    ========================= */
     const pdf = await PDFDocument.create();
     pdf.registerFontkit(fontkit);
 
-    const page = pdf.addPage([595.28, 841.89]); // A4
-    const { width, height } = page.getSize();
-
-    // 日本語フォント読み込み
+    // 日本語フォント（※ここ重要）
     const fontPath = path.join(
       process.cwd(),
       'public/fonts/NotoSansJP-Regular.ttf'
     );
     const fontBytes = await fs.readFile(fontPath);
-    const font = await pdf.embedFont(fontBytes);
+    const jpFont = await pdf.embedFont(fontBytes);
 
-    // QR配置
+    const page = pdf.addPage([595.28, 841.89]); // A4 portrait
+    const { width, height } = page.getSize();
+
+    /* =========================
+       4. QR配置
+    ========================= */
     const qrSize = 220;
     const qrX = (width - qrSize) / 2;
-    const qrY = (height - qrSize) / 2 - 40;
+    const qrY = height / 2 - qrSize / 2;
 
     const qrImg = await pdf.embedPng(pngBytes);
     page.drawImage(qrImg, {
@@ -60,54 +73,64 @@ export async function GET(
       height: qrSize,
     });
 
-    // 現場名
+    /* =========================
+       5. テキスト描画
+    ========================= */
+
+    // 現場名（上）
     page.drawText(siteName, {
       x: 48,
-      y: height - 90,
-      size: 26,
-      font,
+      y: height - 80,
+      size: 24,
+      font: jpFont,
       color: rgb(0.1, 0.1, 0.1),
     });
 
     // 説明文
-    page.drawText('現場情報', {
+    page.drawText('スマホで読み取って現場ページを開いてください', {
       x: 48,
-      y: qrY + qrSize + 24,
-      size: 10,
-      font,
-      color: rgb(0.1, 0.1, 0.1),
+      y: qrY + qrSize + 20,
+      size: 12,
+      font: jpFont,
+      color: rgb(0.2, 0.2, 0.2),
     });
 
-    // Produced by
-    const produced = 'Produced by Reglanz';
-const producedSize = 12;
-const producedWidth = font.widthOfTextAtSize(produced, producedSize);
+    // 右下：日付
+    const today = new Date();
+    const dateText = `${today.getFullYear()}-${String(
+      today.getMonth() + 1
+    ).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-page.drawText(produced, {
-  x: width - rightMargin - producedWidth, // ←ここがポイント
-  y: 78, // 日付より少し上
-  size: producedSize,
-  font,
-  color: rgb(0.35, 0.35, 0.35),
-});
+    const dateSize = 10;
+    const dateWidth = jpFont.widthOfTextAtSize(dateText, dateSize);
 
-    // 日付
-const dt = new Date();
-const stamp = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    page.drawText(dateText, {
+      x: width - 48 - dateWidth,
+      y: 48,
+      size: dateSize,
+      font: jpFont,
+      color: rgb(0.4, 0.4, 0.4),
+    });
 
-const dateSize = 10;
-const dateWidth = font.widthOfTextAtSize(stamp, dateSize);
+    // 右下：Produced by（←日付と右揃え）
+    const producedText = 'Produced by Reglanz';
+    const producedSize = 10;
+    const producedWidth = jpFont.widthOfTextAtSize(
+      producedText,
+      producedSize
+    );
 
-const rightX = width - rightMargin - dateWidth;
+    page.drawText(producedText, {
+      x: width - 48 - producedWidth,
+      y: 64,
+      size: producedSize,
+      font: jpFont,
+      color: rgb(0.4, 0.4, 0.4),
+    });
 
-page.drawText(stamp, {
-  x: rightX,
-  y: 60,
-  size: dateSize,
-  font,
-  color: rgb(0.35, 0.35, 0.35),
-});
-
+    /* =========================
+       6. レスポンス
+    ========================= */
     const pdfBytes = await pdf.save();
 
     return new NextResponse(Buffer.from(pdfBytes), {
@@ -118,8 +141,9 @@ page.drawText(stamp, {
       },
     });
   } catch (e: any) {
+    console.error(e);
     return NextResponse.json(
-      { ok: false, error: e?.message ?? 'failed' },
+      { error: e?.message ?? 'failed' },
       { status: 500 }
     );
   }
