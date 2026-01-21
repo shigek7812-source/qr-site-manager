@@ -11,13 +11,12 @@ export async function GET(
 
     const site = await getSiteByCode(code);
     if (!site) {
-      return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+      return NextResponse.json({ error: 'not found' }, { status: 404 });
     }
 
     const photos = await listPhotosBySiteId(site.id);
-
     return NextResponse.json({ site, photos });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: e?.message || 'failed' }, { status: 500 });
   }
 }
