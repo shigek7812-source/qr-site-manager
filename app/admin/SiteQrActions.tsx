@@ -3,75 +3,118 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
-type Props = {
-  siteCode: string;
-};
+type Props = { siteCode: string };
 
-function buildPublicUrl(siteCode: string) {
-  // 本番/プレビュー/ローカル問わず動くように、NEXT_PUBLIC_APP_BASE_URL があれば優先
-  const base =
-    process.env.NEXT_PUBLIC_APP_BASE_URL ||
-    (typeof window !== 'undefined' ? window.location.origin : '');
-  return `${base}/s/${encodeURIComponent(siteCode)}`;
+function safeCopyText(text: string) {
+  // clipboard API が弾かれる環境のフォールバック
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  ta.style.top = '-9999px';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
 }
 
-function svgQrDataUrl(text: string, size = 220) {
-  // 軽量：外部ライブラリなしの簡易QR…ではなく「QR画像が欲しい」なら本当は qrcode で作るのが正道。
-  // ただ、あなたのプロジェクトは既に qrcode を入れているので、
-  // 「コピー用途」は URLコピーだけで十分、QRは“QRページ”に飛ばす運用が一番事故らない。
-  // ここでは“QRコピー”＝URLコピーと同義にし、文言だけ残す。
-  return `data:text/plain;charset=utf-8,${encodeURIComponent(text)}`;
+async function copyText(text: string) {
+  if (!text) return;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      safeCopyText(text);
+    }
+  } catch {
+    safeCopyText(text);
+  }
 }
 
 export default function SiteQrActions({ siteCode }: Props) {
-  const publicUrl = useMemo(() => buildPublicUrl(siteCode), [siteCode]);
-  const [msg, setMsg] = useState<string>('');
+  const publicPath = useMemo(() => `/sites/${siteCode}`, [siteCode]);
+  const absoluteUrl = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return new URL(publicPath, window.location.origin).toString(); // vercel/localhost両対応
+  }, [publicPath]);
 
-  const copy = async (text: string, okMsg: string) => {
+  const [busy, setBusy] = useState(false);
+
+  const onCopyUrl = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setBusy(true);
     try {
-      await navigator.clipboard.writeText(text);
-      setMsg(okMsg);
-      setTimeout(() => setMsg(''), 1200);
-    } catch {
-      setMsg('コピーできませんでした');
-      setTimeout(() => setMsg(''), 1200);
+      await copyText(absoluteUrl);
+    } finally {
+      setBusy(false);
     }
   };
 
-  const copyUrl = () => copy(publicUrl, 'URLをコピーしました');
-  const copyQr = () => copy(publicUrl, 'QR用URLをコピーしました');
+  const onCopyQr = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setBusy(true);
+    try {
+      // 依存が無い環境でも落ちないように、動的import + fallback
+      const mod = await import('qrcode').catch(() => null as any);
+      if (!mod?.toDataURL) {
+        // fallback: QR生成できないならURLをコピー（最低限ユーザーは困らない）
+        await copyText(absoluteUrl);
+        return;
+      }
+      const dataUrl: string = await mod.toDataURL(absoluteUrl, { margin: 1, scale: 8 });
+
+      // 画像としてコピーできる環境だけ対応、無理ならURLコピーへフォールバック
+      const canWriteImage = !!(navigator.clipboard as any)?.write && typeof (window as any).ClipboardItem !== 'undefined';
+      if (!canWriteImage) {
+        await copyText(absoluteUrl);
+        return;
+      }
+
+      const blob = await (await fetch(dataUrl)).blob();
+      const item = new (window as any).ClipboardItem({ [blob.type]: blob });
+      await (navigator.clipboard as any).write([item]);
+    } catch {
+      // 最後は必ずURLコピーに逃がす
+      await copyText(absoluteUrl);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div
+      className="flex flex-wrap items-center gap-2"
+      onClick={(e) => e.stopPropagation()} // 親クリック対策（重要）
+    >
       {/* 公開ページ（先頭・黒） */}
       <Link
-        href={`/s/${siteCode}`}
-        target="_blank"
-        className="px-3 py-1.5 text-xs rounded bg-gray-900 text-white hover:bg-black whitespace-nowrap"
+        href={publicPath}
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex items-center justify-center h-9 px-3 text-xs rounded bg-gray-900 text-white hover:bg-black transition"
       >
         公開ページを開く
       </Link>
 
-      {/* QR（運用上は“QR用URLコピー”） */}
+      {/* QR（高さ揃え） */}
       <button
         type="button"
-        onClick={copyQr}
-        className="px-3 py-1.5 text-xs rounded border border-gray-300 hover:bg-gray-50 whitespace-nowrap"
+        onClick={onCopyQr}
+        disabled={busy}
+        className="inline-flex items-center justify-center h-9 px-3 text-xs rounded border hover:bg-gray-50 disabled:opacity-60"
       >
         QRコピー
       </button>
 
-      {/* URL */}
+      {/* URL（高さ揃え） */}
       <button
         type="button"
-        onClick={copyUrl}
-        className="px-3 py-1.5 text-xs rounded border border-gray-300 hover:bg-gray-50 whitespace-nowrap"
+        onClick={onCopyUrl}
+        disabled={busy}
+        className="inline-flex items-center justify-center h-9 px-3 text-xs rounded border hover:bg-gray-50 disabled:opacity-60"
       >
         URLコピー
       </button>
-
-      {/* ちいさなフィードバック */}
-      {msg ? <span className="text-xs text-gray-500 ml-1">{msg}</span> : null}
     </div>
   );
 }

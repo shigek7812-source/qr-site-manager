@@ -11,30 +11,27 @@ type Site = {
   name: string;
   status?: string | null;
 
-  // 表示したい情報
   address?: string | null;
-  client_name?: string | null;      // 施主
-  contractor_name?: string | null;  // 元請
-  designer_name?: string | null;    // 設計（※DBに無いなら一旦空でOK）
+  client_name?: string | null; // 施主
+  contractor_name?: string | null; // 元請
+  designer_name?: string | null; // 設計（DBになければ未登録表示）
 
-  manager_name?: string | null;     // 管理者
+  manager_name?: string | null; // 管理者
   notes?: string | null;
 
   updated_at?: string | null;
 };
 
 function statusStyle(status?: string | null) {
-  // status は自由入力でも動くようにざっくり判定
   const s = (status ?? '').toLowerCase();
 
-  // 例: "工事中", "見積", "完了" などを想定
-  if (s.includes('工事') || s.includes('施工') || s.includes('進行') || s.includes('in')) {
+  if (s.includes('見積提出済') || s.includes('プランニング中') || s.includes('進行') || s.includes('in')) {
     return { dot: 'bg-emerald-500', label: 'text-emerald-700 bg-emerald-50 ring-emerald-100' };
   }
-  if (s.includes('見積') || s.includes('提案') || s.includes('検討') || s.includes('quote')) {
+  if (s.includes('工事中') || s.includes('保留') || s.includes('検討') || s.includes('quote')) {
     return { dot: 'bg-amber-500', label: 'text-amber-700 bg-amber-50 ring-amber-100' };
   }
-  if (s.includes('完了') || s.includes('引渡') || s.includes('done')) {
+  if (s.includes('完了') || s.includes('手直し') || s.includes('done')) {
     return { dot: 'bg-sky-500', label: 'text-sky-700 bg-sky-50 ring-sky-100' };
   }
   return { dot: 'bg-gray-400', label: 'text-gray-700 bg-gray-50 ring-gray-200' };
@@ -97,25 +94,14 @@ export default function AdminDashboard() {
         </Link>
       </div>
 
-      {/* 一覧 */}
-      <div className="relative bg-white shadow-sm ring-1 ring-gray-200 rounded-xl overflow-hidden">
-        {/* 背景ロゴ（うっすら） */}
-       <Image
-  src="/brand/logo-black.png"
-  alt=""
-  width={900}
-  height={900}
-  className="
-    pointer-events-none absolute
-    left-1/2 top-1/2
-    -translate-x-1/2 -translate-y-1/2
-    opacity-[0.03]
-    w-[520px] h-[520px]
-    sm:w-[640px] sm:h-[640px]
-    md:w-[820px] md:h-[820px]
-  "
-/>
+      {/* 一覧ラッパー（relative 必須） */}
+      <div className="relative bg-white rounded-xl ring-1 ring-gray-200 overflow-hidden">
+        {/* 背景ロゴ（縦横比維持） */}
+        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] w-[520px] h-[520px] sm:w-[640px] sm:h-[640px] md:w-[820px] md:h-[820px]">
+          <Image src="/brand/logo-black.png" alt="" fill className="object-contain" />
+        </div>
 
+        {/* 上部メタ */}
         <div className="relative px-4 py-3 border-b border-gray-100 flex items-center justify-between">
           <p className="text-sm font-medium text-gray-700">
             登録現場：<span className="font-semibold text-gray-900">{count}</span> 件
@@ -123,6 +109,7 @@ export default function AdminDashboard() {
           <p className="text-xs text-gray-400">一覧は管理者のみ</p>
         </div>
 
+        {/* 一覧 */}
         <ul role="list" className="relative divide-y divide-gray-100">
           {sites.length === 0 ? (
             <li className="px-6 py-10 text-center">
@@ -134,13 +121,14 @@ export default function AdminDashboard() {
           ) : (
             sites.map((site) => {
               const st = statusStyle(site.status);
+
               return (
                 <li key={site.id} className="hover:bg-gray-50 transition">
                   <div className="px-5 py-4">
                     <div className="flex items-start justify-between gap-4">
                       {/* 左：情報 */}
                       <div className="min-w-0 flex-1">
-                        {/* 1行目：丸ぽち + 現場名 + 管理者 */}
+                        {/* 1行目：丸ぽち → 現場名 → 管理者（丸ぽち） */}
                         <div className="flex items-center gap-3 min-w-0">
                           <span className={`h-2.5 w-2.5 rounded-full ${st.dot} shrink-0`} />
 
@@ -153,27 +141,19 @@ export default function AdminDashboard() {
 
                           {site.manager_name ? (
                             <span
-                              className="
-                                inline-flex items-center
-                                px-2.5 py-1
-                                rounded-full text-xs font-semibold
-                                bg-gray-100 text-gray-800
-                                ring-1 ring-gray-200
-                                shrink-0
-                              "
+                              className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 ring-1 ring-gray-200 shrink-0"
                               title="管理者"
                             >
-                              {site.manager_name}
+                             <span className="...">
+  {site.manager_name?.trim() ? site.manager_name : '未設定'}
+</span>
                             </span>
                           ) : null}
 
-                          {/* 任意：ステータス文字も出したい場合（丸ぽちだけでいいなら消してOK） */}
+                          {/* ステータス文字も出す（不要ならこのブロック削除OK） */}
                           {site.status ? (
                             <span
-                              className={`
-                                inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ring-1 shrink-0
-                                ${st.label}
-                              `}
+                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ring-1 shrink-0 ${st.label}`}
                               title="現場ステータス"
                             >
                               {site.status}
@@ -192,7 +172,7 @@ export default function AdminDashboard() {
                           <span>設計：{site.designer_name || '未登録'}</span>
                         </div>
 
-                        {/* メモ（現場名の下あたりで読みやすく） */}
+                        {/* メモ（現場名の下あたり） */}
                         <p className="mt-2 text-sm text-gray-500 whitespace-pre-wrap">
                           {site.notes || 'メモなし'}
                         </p>
@@ -203,23 +183,22 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      {/* 右：編集＋更新日（公開ページへ飛ばさない） */}
+                      {/* 右：編集＋更新日 */}
                       <div className="flex flex-col items-end gap-2 shrink-0">
-                        <Link
-                          href={`/admin/sites/${site.id}`}
-                          className="text-xs px-3 py-1.5 rounded bg-gray-900 text-white hover:bg-black transition whitespace-nowrap"
-                        >
-                          編集
-                        </Link>
+                       <Link
+  href={`/admin/sites/${site.id}`}
+  onClick={(e) => e.stopPropagation()}
+  className="text-xs px-3 py-1.5 rounded bg-gray-900 text-white hover:bg-black transition whitespace-nowrap"
+>
+  編集
+</Link>
 
                         <p className="text-xs text-gray-400 whitespace-nowrap">
                           更新日：
                           {site.updated_at ? new Date(site.updated_at).toLocaleDateString() : '-'}
                         </p>
 
-                        <span className="text-[10px] text-gray-400">
-                          code: {site.code}
-                        </span>
+                        <span className="text-[10px] text-gray-400">code: {site.code}</span>
                       </div>
                     </div>
                   </div>
