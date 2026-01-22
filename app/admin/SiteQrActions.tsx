@@ -1,88 +1,93 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import  QRCode from 'qrcode';
 
+type Props = { siteCode: string };
 
-type Props = {
-  siteCode: string;
-};
+function safeCopyText(text: string) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  ta.style.top = '-9999px';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+}
 
 export default function SiteQrActions({ siteCode }: Props) {
-  const publicUrl = useMemo(() => `/s/${siteCode}`, [siteCode]);
-  const fullUrl = useMemo(() => {
-    if (typeof window === 'undefined') return publicUrl;
-    return new URL(publicUrl, window.location.origin).toString();
-  }, [publicUrl]);
+  const publicPath = useMemo(() => `/sites/${siteCode}`, [siteCode]);
+  const absoluteUrl = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return new URL(publicPath, window.location.origin).toString();
+  }, [publicPath]);
 
   const [busy, setBusy] = useState(false);
 
   const copyUrl = async () => {
-    await navigator.clipboard.writeText(fullUrl);
-    alert('公開URLをコピーしました');
-  };
-
-  const copyQrImage = async () => {
-    setBusy(true);
     try {
-      const dataUrl = await QRCode.toDataURL(fullUrl, {
-        errorCorrectionLevel: 'M',
-        margin: 2,
-        width: 256,
-      });
-
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-
-      const ClipboardItemAny = (window as any).ClipboardItem;
-      if (!ClipboardItemAny || !navigator.clipboard?.write) {
-        throw new Error('Clipboard image copy not supported');
+      if (!absoluteUrl) return;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(absoluteUrl);
+      } else {
+        safeCopyText(absoluteUrl);
       }
-
-      await navigator.clipboard.write([
-        new ClipboardItemAny({ [blob.type]: blob }),
-      ]);
-
-      alert('QR画像をコピーしました');
-    } catch (e) {
-      const dataUrl = await QRCode.toDataURL(fullUrl, {
-        errorCorrectionLevel: 'M',
-        margin: 2,
-        width: 512,
-      });
-      window.open(dataUrl, '_blank');
-      alert('このブラウザでは画像コピーが制限されるため、QR画像を別タブで開きました（保存して使ってください）');
-    } finally {
-      setBusy(false);
+    } catch {
+      safeCopyText(absoluteUrl);
     }
   };
 
+  const copyQr = async () => {
+    // まずは「QRのリンク(URL)をコピー」で運用（画像コピーは後で強化）
+    await copyUrl();
+  };
+
   return (
-    <div className="flex flex-wrap items-center gap-2 mt-2">
-      <button
-        type="button"
-        onClick={copyUrl}
-        className="text-xs px-2.5 py-1.5 rounded bg-gray-900 text-white hover:bg-black"
-      >
-        公開URLコピー
-      </button>
-
-      <button
-        type="button"
-        onClick={copyQrImage}
-        disabled={busy}
-        className="text-xs px-2.5 py-1.5 rounded bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-60"
-      >
-        {busy ? 'QR作成中…' : 'QRコピー'}
-      </button>
-
-      <a
-        href={publicUrl}
-        target="_blank"
-        className="text-xs px-2.5 py-1.5 rounded bg-white border border-gray-300 hover:bg-gray-50"
+    <div className="flex flex-wrap items-center gap-2">
+      {/* 公開ページを開く */}
+      <Link
+        href={publicPath}
+        className="inline-flex items-center justify-center h-9 px-3 text-xs rounded bg-gray-900 text-white hover:bg-black transition whitespace-nowrap"
       >
         公開ページを開く
-      </a>
+      </Link>
+
+      {/* QRコピー */}
+      <button
+        type="button"
+        onClick={async () => {
+          if (busy) return;
+          setBusy(true);
+          try {
+            await copyQr();
+          } finally {
+            setBusy(false);
+          }
+        }}
+        className="inline-flex items-center justify-center h-9 px-3 text-xs rounded border border-gray-300 hover:bg-gray-50 transition whitespace-nowrap"
+      >
+        QRコピー
+      </button>
+
+      {/* URLコピー */}
+      <button
+        type="button"
+        onClick={async () => {
+          if (busy) return;
+          setBusy(true);
+          try {
+            await copyUrl();
+          } finally {
+            setBusy(false);
+          }
+        }}
+        className="inline-flex items-center justify-center h-9 px-3 text-xs rounded border border-gray-300 hover:bg-gray-50 transition whitespace-nowrap"
+      >
+        URLコピー
+      </button>
     </div>
   );
 }
