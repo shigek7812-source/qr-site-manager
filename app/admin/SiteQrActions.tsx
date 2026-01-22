@@ -33,7 +33,7 @@ async function copyText(text: string) {
 }
 
 export default function SiteQrActions({ siteCode }: Props) {
-  const publicPath = useMemo(() => `/sites/${siteCode}`, [siteCode]);
+  const publicPath = useMemo(() => `/s/${siteCode}`, [siteCode]);
   const absoluteUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
     return new URL(publicPath, window.location.origin).toString(); // vercel/localhost両対応
