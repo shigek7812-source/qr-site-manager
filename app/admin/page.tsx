@@ -109,14 +109,28 @@ export default function AdminDashboard() {
       {/* 一覧カード */}
       <div className="relative bg-white rounded-xl ring-1 ring-gray-200 overflow-hidden">
         {/* 背景ロゴ（うっすら） */}
-        <Image
-          src="/brand/logo-black.png"
-          alt=""
-          width={760}
-          height={760}
-          className="pointer-events-none absolute right-[-220px] top-[-160px] opacity-[0.03]"
-        />
+       <Image
+  src="/brand/logo-black.png"
+  alt=""
+  width={700}
+  height={700}
+  className="
+    pointer-events-none
+    absolute
+    opacity-[0.04]
 
+    /* PC */
+    md:right-[-160px] md:top-[-120px]
+
+    /* スマホ */
+    left-1/2 top-1/2
+    -translate-x-1/2 -translate-y-1/2
+    md:translate-x-0 md:translate-y-0
+
+    md:w-[700px]
+    w-[420px]
+  "
+/>
         {/* 上部メタ */}
         <div className="relative px-4 py-3 border-b border-gray-100 flex items-center justify-between">
           <p className="text-sm font-medium text-gray-700">
