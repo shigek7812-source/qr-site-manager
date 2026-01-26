@@ -1,55 +1,74 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSiteById, updateSite } from '@/lib/data/sites';
+// app/api/admin/sites/[id]/route.ts
+import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
-
+// ★追加: 編集画面を開いたときに既存データを取得する処理
 export async function GET(
-  _req: NextRequest,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
 
-    const site = await getSiteById(id);
-    if (!site) return NextResponse.json({ error: 'site not found' }, { status: 404 });
+    const { data, error } = await supabaseAdmin
+      .from('sites')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    return NextResponse.json({ site });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+
+    return NextResponse.json(data, { status: 200 });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? 'failed' }, { status: 500 });
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
 
+// ★修正: データの更新処理（新しい項目を追加）
 export async function PATCH(
-  req: NextRequest,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+    const body = await req.json();
 
-    const body = await req.json().catch(() => ({}));
+    // 更新する項目（図面・工程表・見積りを追加）
+    const patch = {
+      name: body.name ?? null,
+      code: body.code ?? null,
+      status: body.status ?? null,
+      manager_name: body.manager_name ?? null,
+      
+      address: body.address ?? null,
+      client_name: body.client_name ?? null,
+      contractor_name: body.contractor_name ?? null,
+      designer_name: body.designer_name ?? null,
+      notes: body.notes ?? null,
 
-    // 受け取る項目はホワイトリスト方式（余計な更新を防ぐ）
-    const patch: Record<string, any> = {};
+      // ★追加したリンク項目
+      drawing_url: body.drawing_url ?? null,  // 図面
+      schedule_url: body.schedule_url ?? null,// 工程表
+      quote_url: body.quote_url ?? null,      // 見積り
 
-    if (typeof body.status === 'string') patch.status = body.status;
-    if (typeof body.manager_name === 'string') patch.manager_name = body.manager_name;
+      updated_at: new Date().toISOString(),
+    };
 
-    if (typeof body.address === 'string') patch.address = body.address;
+    const { data, error } = await supabaseAdmin
+      .from('sites')
+      .update(patch)
+      .eq('id', id)
+      .select()
+      .single();
 
-    // 表示順：施主 → 元請 → 設計
-    if (typeof body.client_name === 'string') patch.client_name = body.client_name;
-    if (typeof body.contractor_name === 'string') patch.contractor_name = body.contractor_name;
-    if (typeof body.designer_name === 'string') patch.designer_name = body.designer_name;
-
-    // 何も来てない時
-    if (Object.keys(patch).length === 0) {
-      return NextResponse.json({ error: 'no fields' }, { status: 400 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    const updated = await updateSite(id, patch);
-    return NextResponse.json({ ok: true, site: updated });
+    return NextResponse.json(data, { status: 200 });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message ?? 'failed' }, { status: 500 });
+    return NextResponse.json({ error: e?.message ?? 'server error' }, { status: 500 });
   }
 }

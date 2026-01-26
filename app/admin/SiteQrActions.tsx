@@ -1,120 +1,57 @@
 'use client';
 
-import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 
-type Props = { siteCode: string };
+type Site = {
+  id: string;
+  code: string;
+  name: string;
+};
 
-function safeCopyText(text: string) {
-  // clipboard API が弾かれる環境のフォールバック
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed';
-  ta.style.left = '-9999px';
-  ta.style.top = '-9999px';
-  document.body.appendChild(ta);
-  ta.focus();
-  ta.select();
-  document.execCommand('copy');
-  document.body.removeChild(ta);
-}
-
-async function copyText(text: string) {
-  if (!text) return;
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-    } else {
-      safeCopyText(text);
-    }
-  } catch {
-    safeCopyText(text);
-  }
-}
-
-export default function SiteQrActions({ siteCode }: Props) {
-  const publicPath = useMemo(() => `/s/${siteCode}`, [siteCode]);
-  const absoluteUrl = useMemo(() => {
-    if (typeof window === 'undefined') return '';
-    return new URL(publicPath, window.location.origin).toString(); // vercel/localhost両対応
-  }, [publicPath]);
-
-  const [busy, setBusy] = useState(false);
-
-  const onCopyUrl = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setBusy(true);
-    try {
-      await copyText(absoluteUrl);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onCopyQr = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setBusy(true);
-    try {
-      // 依存が無い環境でも落ちないように、動的import + fallback
-      const mod = await import('qrcode').catch(() => null as any);
-      if (!mod?.toDataURL) {
-        // fallback: QR生成できないならURLをコピー（最低限ユーザーは困らない）
-        await copyText(absoluteUrl);
-        return;
-      }
-      const dataUrl: string = await mod.toDataURL(absoluteUrl, { margin: 1, scale: 8 });
-
-      // 画像としてコピーできる環境だけ対応、無理ならURLコピーへフォールバック
-      const canWriteImage = !!(navigator.clipboard as any)?.write && typeof (window as any).ClipboardItem !== 'undefined';
-      if (!canWriteImage) {
-        await copyText(absoluteUrl);
-        return;
-      }
-
-      const blob = await (await fetch(dataUrl)).blob();
-      const item = new (window as any).ClipboardItem({ [blob.type]: blob });
-      await (navigator.clipboard as any).write([item]);
-    } catch {
-      // 最後は必ずURLコピーに逃がす
-      await copyText(absoluteUrl);
-    } finally {
-      setBusy(false);
-    }
-  };
+export default function SiteQrActions({ site }: { site: Site }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const shareUrl = `${window.location.origin}/s/${site.code || site.id}`;
 
   return (
-    <div
-      className="flex flex-wrap items-center gap-2"
-      onClick={(e) => e.stopPropagation()} // 親クリック対策（重要）
-    >
-      {/* 公開ページ（先頭・黒） */}
-      <Link
-        href={publicPath}
-        onClick={(e) => e.stopPropagation()}
-        className="inline-flex items-center justify-center h-9 px-3 text-xs rounded bg-gray-900 text-white hover:bg-black transition"
-      >
-        公開ページを開く
-      </Link>
+    <>
+      <div className="flex items-center gap-2">
+        {/* QRコードボタン：白背景・グレー枠に変更 */}
+        <button
+          onClick={() => setIsOpen(true)}
+          className="bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-300 text-xs font-bold px-4 py-2 rounded-sm transition flex items-center gap-1.5"
+        >
+          <svg className="w-3.5 h-3.5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zM5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8" />
+          </svg>
+          QRコピー
+        </button>
+      </div>
 
-      {/* QR（高さ揃え） */}
-      <button
-        type="button"
-        onClick={onCopyQr}
-        disabled={busy}
-        className="inline-flex items-center justify-center h-9 px-3 text-xs rounded border hover:bg-gray-50 disabled:opacity-60"
-      >
-        QRコピー
-      </button>
-
-      {/* URL（高さ揃え） */}
-      <button
-        type="button"
-        onClick={onCopyUrl}
-        disabled={busy}
-        className="inline-flex items-center justify-center h-9 px-3 text-xs rounded border hover:bg-gray-50 disabled:opacity-60"
-      >
-        URLコピー
-      </button>
-    </div>
+      {/* QRコードモーダル（デザインをモノトーンに調整） */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setIsOpen(false)}>
+          <div className="bg-white p-6 rounded-sm shadow-2xl max-w-sm w-full text-center space-y-5" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-neutral-800">
+              共有用QRコード
+            </h3>
+            <div className="bg-white p-2 rounded border border-neutral-200 inline-block">
+              <QRCodeSVG value={shareUrl} size={200} />
+            </div>
+            <p className="text-xs text-neutral-500 break-all px-2 font-mono bg-neutral-100 py-2 rounded">
+              {shareUrl}
+            </p>
+            <div className="pt-2">
+              <button
+                onClick={() => setIsOpen(false)}
+                className="w-full py-3 rounded-sm bg-black text-white font-bold text-sm hover:bg-neutral-800 transition"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

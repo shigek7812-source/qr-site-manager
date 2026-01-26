@@ -1,152 +1,82 @@
+// app/admin/sites/new/page.tsx
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function NewSitePage() {
-    const router = useRouter();
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+  const router = useRouter();
+  const [name, setName] = useState('');
+  const [code, setCode] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    const [formData, setFormData] = useState({
-        code: '',
-        name: '',
-        address: '',
-        manager_name: '',
-        manager_phone: '',
-        notes: ''
-    });
+  const submit = async () => {
+    setError(null);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
-
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setLoading(true);
-  setError('');
-
-  try {
-    const res = await fetch('/api/admin/sites', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(formData),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error || 'Failed to create site');
+    if (!name.trim()) {
+      setError('現場名を入力してください');
+      return;
     }
 
-    router.push('/admin');
-    router.refresh();
-  } catch (err: any) {
-    console.error(err);
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/sites', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name, code }),
+});
 
-    return (
-        <div className="max-w-2xl mx-auto">
-            <h1 className="text-2xl font-bold mb-6">Create New Site</h1>
+const text = await res.text();
+let data: any = {};
+try { data = text ? JSON.parse(text) : {}; } catch {}
 
-            <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg p-6 space-y-4">
-                {error && <div className="bg-red-50 text-red-500 p-3 rounded">{error}</div>}
+if (!res.ok) {
+  throw new Error(data?.error || text || 'Failed to create site');
+}
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Site Code (URL Slug)</label>
-                        <input
-                            type="text"
-                            name="code"
-                            required
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                            placeholder="e.g. site-a"
-                            value={formData.code}
-                            onChange={handleChange}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Site Name</label>
-                        <input
-                            type="text"
-                            name="name"
-                            required
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                            placeholder="Construction Site A"
-                            value={formData.name}
-                            onChange={handleChange}
-                        />
-                    </div>
-                </div>
+      router.push('/admin'); // 一覧へ
+      router.refresh();
+    } catch (e: any) {
+      setError(e?.message ?? '作成エラー');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Address</label>
-                    <input
-                        type="text"
-                        name="address"
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                        value={formData.address}
-                        onChange={handleChange}
-                    />
-                </div>
+  return (
+    <div className="p-6 max-w-xl space-y-4">
+      <h1 className="text-xl font-bold">新規現場作成</h1>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Manager Name</label>
-                        <input
-                            type="text"
-                            name="manager_name"
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                            value={formData.manager_name}
-                            onChange={handleChange}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Manager Phone</label>
-                        <input
-                            type="text"
-                            name="manager_phone"
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                            value={formData.manager_phone}
-                            onChange={handleChange}
-                        />
-                    </div>
-                </div>
+      {error && <p className="text-red-600 text-sm">{error}</p>}
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Notes (Internal)</label>
-                    <textarea
-                        name="notes"
-                        rows={3}
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                        value={formData.notes}
-                        onChange={handleChange}
-                    />
-                </div>
+      <label className="block">
+        <div className="text-sm text-gray-600 mb-1">現場名（必須）</div>
+        <input
+          className="w-full rounded border border-gray-300 px-3 py-2"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="例）test001"
+        />
+      </label>
 
-                <div className="flex justify-end space-x-3 pt-4 border-t">
-                    <button
-                        type="button"
-                        onClick={() => router.back()}
-                        className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-50"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-                    >
-                        {loading ? 'Creating...' : 'Create Site'}
-                    </button>
-                </div>
-            </form>
-        </div>
-    );
+      <label className="block">
+        <div className="text-sm text-gray-600 mb-1">現場コード（任意）</div>
+        <input
+          className="w-full rounded border border-gray-300 px-3 py-2"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="未入力なら自動生成"
+        />
+      </label>
+
+      <button
+        onClick={submit}
+        disabled={saving}
+        className="inline-flex items-center gap-2 px-4 py-2 rounded bg-gray-900 text-white disabled:opacity-60"
+      >
+        {saving ? '作成中…' : '作成する'}
+      </button>
+    </div>
+  );
 }

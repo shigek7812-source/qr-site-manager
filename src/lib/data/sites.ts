@@ -56,11 +56,32 @@ export async function getSiteById(id: string) {
   if (error) throw error;
   return data;
 }
+function pad3(n: number) {
+  return String(n).padStart(3, '0');
+}
 
-export async function createSite(input: CreateSiteInput) {
+async function generateNextCode() {
+  // code が "001" みたいな数字運用前提。数字じゃない code は無視
   const { data, error } = await supabaseAdmin
     .from('sites')
-    .insert([input])
+    .select('code');
+
+  if (error) throw error;
+
+  const maxNum =
+    (data ?? [])
+      .map((r: any) => parseInt(String(r.code ?? ''), 10))
+      .filter((n) => Number.isFinite(n))
+      .reduce((a, b) => Math.max(a, b), 0) || 0;
+
+  return pad3(maxNum + 1);
+}
+export async function createSite(input: CreateSiteInput) {
+  const code = input.code?.trim() ? input.code : await generateNextCode();
+
+  const { data, error } = await supabaseAdmin
+    .from('sites')
+    .insert([{ ...input, code }])
     .select()
     .single();
 

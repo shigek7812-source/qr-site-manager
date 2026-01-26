@@ -1,61 +1,76 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
 import SiteQrActions from './SiteQrActions';
 
+// --- Types ---
 type Site = {
   id: string;
   code: string;
   name: string;
   status?: string | null;
-
   address?: string | null;
-  client_name?: string | null; // 施主
-  contractor_name?: string | null; // 元請
-  designer_name?: string | null; // 設計（DBになければ未登録表示）
-
-  manager_name?: string | null; // 管理者
+  client_name?: string | null;
+  contractor_name?: string | null;
+  designer_name?: string | null;
+  manager_name?: string | null;
   notes?: string | null;
-
   updated_at?: string | null;
 };
 
-function statusStyle(status?: string | null) {
-  const s = (status ?? '').toLowerCase();
+type SortKey = 'code' | 'status' | 'updated';
 
-  if (s.includes('見積提出済') || s.includes('プランニング中') || s.includes('進行') || s.includes('in')) {
-    return { dot: 'bg-emerald-500', label: 'text-emerald-700 bg-emerald-50 ring-emerald-100' };
-  }
-  if (s.includes('工事中') || s.includes('保留') || s.includes('検討') || s.includes('quote')) {
-    return { dot: 'bg-amber-500', label: 'text-amber-700 bg-amber-50 ring-amber-100' };
-  }
-  if (s.includes('完了') || s.includes('手直し') || s.includes('done')) {
-    return { dot: 'bg-sky-500', label: 'text-sky-700 bg-sky-50 ring-sky-100' };
-  }
-  return { dot: 'bg-gray-400', label: 'text-gray-700 bg-gray-50 ring-gray-200' };
+// --- Constants ---
+const STATUS_STYLES: Record<string, { dot: string; badge: string }> = {
+  '見積中':      { dot: 'bg-sky-500',    badge: 'bg-sky-50 text-sky-700 border-sky-200' },
+  'プランニング中': { dot: 'bg-sky-500',    badge: 'bg-sky-50 text-sky-700 border-sky-200' },
+  '見積提出済':   { dot: 'bg-emerald-600', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  '着工準備中':   { dot: 'bg-emerald-600', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  '工事中':      { dot: 'bg-amber-500',   badge: 'bg-amber-50 text-amber-700 border-amber-200' },
+  '手直し':      { dot: 'bg-orange-500',  badge: 'bg-orange-50 text-orange-700 border-orange-200' },
+  '追加工事':    { dot: 'bg-orange-500',  badge: 'bg-orange-50 text-orange-700 border-orange-200' },
+  '完了':        { dot: 'bg-neutral-400', badge: 'bg-neutral-100 text-neutral-500 border-neutral-200' },
+  '保留':        { dot: 'bg-neutral-400', badge: 'bg-neutral-100 text-neutral-500 border-neutral-200' },
+  'その他':      { dot: 'bg-neutral-400', badge: 'bg-neutral-100 text-neutral-500 border-neutral-200' },
+};
+
+const MANAGERS = [
+  { label: '片島', value: 'katashima' },
+  { label: '高沢', value: 'takazawa' },
+  { label: '渡辺', value: 'watanabe' },
+  { label: '坊内', value: 'bouuchi' },
+  { label: '重本', value: 'shigemoto' },
+  { label: '国近', value: 'kunichika' },
+];
+
+function fmtDate(d?: string | null) {
+  if (!d) return '-';
+  const date = new Date(d);
+  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
 }
 
 export default function AdminDashboard() {
+  const [sortKey, setSortKey] = useState<SortKey>('updated');
+  const [preferredManager, setPreferredManager] = useState<string>('');
+  
+  // 型定義を追加してエラー回避
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const count = useMemo(() => sites.length, [sites]);
-
+  // データ取得
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
-        setError(null);
-
         const res = await fetch('/api/admin/sites', { cache: 'no-store' });
-        if (!res.ok) throw new Error('failed');
-        const json = await res.json();
-        setSites(json.sites ?? []);
-      } catch (_e) {
-        setError('現場一覧の取得に失敗しました');
+        if (res.ok) {
+          const json = await res.json();
+          setSites(Array.isArray(json) ? json : json?.sites ?? []);
+        } else {
+           setSites([]);
+        }
+      } catch (e) {
+        console.error(e);
       } finally {
         setLoading(false);
       }
@@ -63,150 +78,224 @@ export default function AdminDashboard() {
     load();
   }, []);
 
-  if (loading) return <p className="p-6">読み込み中...</p>;
-  if (error) return <p className="p-6 text-red-600">{error}</p>;
+  // localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('preferredManager');
+      if (saved) setPreferredManager(saved);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('preferredManager', preferredManager);
+    } catch {}
+  }, [preferredManager]);
+
+  const copyUrl = (code: string) => {
+    const url = `${window.location.origin}/s/${code}`;
+    navigator.clipboard.writeText(url);
+    alert('URLをコピーしました');
+  };
+
+  const sortedSites: Site[] = useMemo(() => {
+    const list = [...sites];
+    if (sortKey === 'code') list.sort((a, b) => (a.code ?? '').localeCompare(b.code ?? ''));
+    if (sortKey === 'status') list.sort((a, b) => (a.status ?? '').localeCompare(b.status ?? ''));
+    if (sortKey === 'updated') list.sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
+
+    if (preferredManager) {
+      list.sort((a, b) => {
+        const am = a.manager_name === preferredManager;
+        const bm = b.manager_name === preferredManager;
+        return (am === bm) ? 0 : am ? -1 : 1;
+      });
+    }
+    return list;
+  }, [sites, sortKey, preferredManager]);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      {/* ヘッダー */}
-      <div className="flex items-end justify-between gap-4 mb-6">
-        <div className="flex items-end gap-3">
-          <Image
-            src="/brand/logo-black.png"
-            alt="Reglanz"
-            width={28}
-            height={28}
-            className="opacity-80"
-            priority
-          />
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">現場一覧</h1>
-            <p className="text-sm text-gray-500 mt-1">Produced by Reglanz.</p>
+    <div className="min-h-screen bg-[#F4F4F4] text-neutral-900 font-sans pb-20 relative">
+      
+      {/* 背景の透かしロゴ */}
+      <div className="fixed inset-0 z-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
+        <img
+          src="/brand/logo-black.png"
+          alt=""
+          className="w-[500px] opacity-[0.03] grayscale translate-y-10"
+        />
+      </div>
+
+      {/* ヘッダーエリア */}
+      <div className="bg-white border-b border-neutral-300 sticky top-0 z-20 shadow-sm">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex flex-col">
+             <div className="flex items-center gap-3">
+               <h1 className="text-xl font-bold text-neutral-900 tracking-tight">現場一覧</h1>
+             </div>
+             <p className="text-[10px] text-neutral-400 mt-0.5 font-medium tracking-wide">Produced by Reglanz.</p>
+          </div>
+          
+          <button
+            onClick={() => window.location.href = '/admin/sites/new'}
+            className="bg-black hover:bg-neutral-800 text-white text-sm font-bold px-5 py-2.5 rounded-sm transition flex items-center gap-2 shadow-sm"
+          >
+            <span>＋ 新規現場作成</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto px-4 mt-8 relative z-10">
+
+        {/* --- フィルター & ソート --- */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-4 border-b border-neutral-300">
+          <div className="text-sm font-bold text-neutral-600">
+            登録現場 : {sortedSites.length} 件
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {/* ソート */}
+            <div className="relative">
+              <select 
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as SortKey)}
+                className="appearance-none bg-transparent text-xs font-bold border border-neutral-400 text-neutral-700 px-3 py-1.5 pr-8 rounded-sm focus:outline-none focus:bg-white hover:bg-white transition cursor-pointer"
+              >
+                <option value="updated">並び替え: 更新日順</option>
+                <option value="code">並び替え: 番号順</option>
+                <option value="status">並び替え: ステータス順</option>
+              </select>
+              <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 text-[10px]">▼</div>
+            </div>
+
+            {/* 担当者絞り込み */}
+            <div className="relative">
+              <select
+                value={preferredManager}
+                onChange={(e) => setPreferredManager(e.target.value)}
+                className={`appearance-none bg-transparent text-xs font-bold border px-3 py-1.5 pr-8 rounded-sm focus:outline-none focus:bg-white hover:bg-white transition cursor-pointer
+                  ${preferredManager ? 'border-neutral-800 text-neutral-900' : 'border-neutral-400 text-neutral-700'}
+                `}
+              >
+                <option value="">担当者: 全員</option>
+                {MANAGERS.map(m => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 text-[10px]">▼</div>
+            </div>
           </div>
         </div>
 
-        <Link
-          href="/admin/sites/new"
-          className="inline-flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-black transition shadow-sm whitespace-nowrap"
-        >
-          <span className="text-lg leading-none">＋</span>
-          新規現場作成
-        </Link>
-      </div>
+        {/* --- リストエリア --- */}
+        <div className="divide-y divide-neutral-300 border-t border-b border-neutral-300">
+          {sortedSites.map((site) => {
+            const style = STATUS_STYLES[site.status || ''] || { dot: 'bg-neutral-300', badge: 'bg-neutral-100 text-neutral-500 border-neutral-200' };
+            const managerLabel = MANAGERS.find(m => m.value === site.manager_name)?.label;
 
-      {/* 一覧ラッパー（relative 必須） */}
-      <div className="relative bg-white rounded-xl ring-1 ring-gray-200 overflow-hidden">
-        {/* 背景ロゴ（縦横比維持） */}
-        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] w-[520px] h-[520px] sm:w-[640px] sm:h-[640px] md:w-[820px] md:h-[820px]">
-          <Image src="/brand/logo-black.png" alt="" fill className="object-contain" />
-        </div>
+            return (
+              <div 
+                key={site.id} 
+                className="py-6 px-3 hover:bg-black/5 transition-colors group"
+              >
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                  
+                  {/* メイン情報 */}
+                  <div className="flex-1 min-w-0">
+                    
+                    {/* 1行目 */}
+                    <div className="flex items-center gap-3 mb-2">
+                       <span className={`w-2.5 h-2.5 rounded-full ${style.dot}`} />
+                       
+                       <h3 className="text-lg font-bold text-neutral-900 leading-none">
+                         {site.name}
+                       </h3>
 
-        {/* 上部メタ */}
-        <div className="relative px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <p className="text-sm font-medium text-gray-700">
-            登録現場：<span className="font-semibold text-gray-900">{count}</span> 件
-          </p>
-          <p className="text-xs text-gray-400">一覧は管理者のみ</p>
-        </div>
+                       <span className={`px-2 py-0.5 text-[10px] font-bold border rounded-sm ${style.badge}`}>
+                         {site.status || '未設定'}
+                       </span>
 
-        {/* 一覧 */}
-        <ul role="list" className="relative divide-y divide-gray-100">
-          {sites.length === 0 ? (
-            <li className="px-6 py-10 text-center">
-              <p className="text-gray-700 font-medium">まだ現場がありません</p>
-              <p className="text-sm text-gray-500 mt-1">
-                右上の「新規現場作成」から1件作ってみましょう。
-              </p>
-            </li>
-          ) : (
-            sites.map((site) => {
-              const st = statusStyle(site.status);
+                       {managerLabel && (
+                         <span className="px-2 py-0.5 text-[10px] font-bold bg-neutral-200 text-neutral-700 rounded-sm">
+                           {managerLabel}
+                         </span>
+                       )}
+                    </div>
 
-              return (
-                <li key={site.id} className="hover:bg-gray-50 transition">
-                  <div className="px-5 py-4">
-                    <div className="flex items-start justify-between gap-4">
-                      {/* 左：情報 */}
-                      <div className="min-w-0 flex-1">
-                        {/* 1行目：丸ぽち → 現場名 → 管理者（丸ぽち） */}
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className={`h-2.5 w-2.5 rounded-full ${st.dot} shrink-0`} />
-
-                          <Link
-                            href={`/admin/sites/${site.id}`}
-                            className="text-base font-semibold text-gray-900 truncate hover:underline"
-                          >
-                            {site.name}
-                          </Link>
-
-                          {site.manager_name ? (
-                            <span
-                              className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 ring-1 ring-gray-200 shrink-0"
-                              title="管理者"
-                            >
-                             <span className="...">
-  {site.manager_name?.trim() ? site.manager_name : '未設定'}
-</span>
-                            </span>
-                          ) : null}
-
-                          {/* ステータス文字も出す（不要ならこのブロック削除OK） */}
-                          {site.status ? (
-                            <span
-                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ring-1 shrink-0 ${st.label}`}
-                              title="現場ステータス"
-                            >
-                              {site.status}
-                            </span>
-                          ) : null}
-                        </div>
-
-                        {/* 2行目：住所 / 施主 / 元請 / 設計 */}
-                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
-                          <span>住所：{site.address || '未登録'}</span>
-                          <span className="text-gray-300">|</span>
-                          <span>施主：{site.client_name || '未登録'}</span>
-                          <span className="text-gray-300">|</span>
-                          <span>元請：{site.contractor_name || '未登録'}</span>
-                          <span className="text-gray-300">|</span>
-                          <span>設計：{site.designer_name || '未登録'}</span>
-                        </div>
-
-                        {/* メモ（現場名の下あたり） */}
-                        <p className="mt-2 text-sm text-gray-500 whitespace-pre-wrap">
-                          {site.notes || 'メモなし'}
-                        </p>
-
-                        {/* ボタン群（公開ページ/QR/URL） */}
-                        <div className="mt-3">
-                          <SiteQrActions siteCode={site.code} />
-                        </div>
+                    {/* 2行目 (No.を削除) */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600 font-medium mb-2">
+                      <span className="flex items-center gap-1">
+                        <span className="text-neutral-400">住所:</span> {site.address || '-'}
+                      </span>
+                      <span className="text-neutral-300">|</span>
+                      <span className="flex items-center gap-1">
+                        <span className="text-neutral-400">施主:</span> {site.client_name || '-'}
+                      </span>
+                      <span className="text-neutral-300">|</span>
+                      <span className="flex items-center gap-1">
+                        <span className="text-neutral-400">元請:</span> {site.contractor_name || '-'}
+                      </span>
+                    </div>
+                    
+                    {/* メモ */}
+                    {site.notes && (
+                      <div className="text-xs text-neutral-400 pl-4 border-l-2 border-neutral-200 mt-1">
+                        {site.notes}
                       </div>
+                    )}
 
-                      {/* 右：編集＋更新日 */}
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                       <Link
-  href={`/admin/sites/${site.id}`}
-  onClick={(e) => e.stopPropagation()}
-  className="text-xs px-3 py-1.5 rounded bg-gray-900 text-white hover:bg-black transition whitespace-nowrap"
->
-  編集
-</Link>
+                    {/* ボタン群 */}
+                    <div className="flex flex-wrap items-center gap-3 mt-4 opacity-80 group-hover:opacity-100 transition-opacity">
+                       <a 
+                         href={`/s/${site.code || site.id}`} 
+                         target="_blank"
+                         rel="noopener noreferrer"
+                         className="bg-black hover:bg-neutral-800 text-white text-xs font-bold px-4 py-2 rounded-sm transition border border-black"
+                       >
+                         公開ページ
+                       </a>
 
-                        <p className="text-xs text-gray-400 whitespace-nowrap">
-                          更新日：
-                          {site.updated_at ? new Date(site.updated_at).toLocaleDateString() : '-'}
-                        </p>
+                       <div className="h-[34px]"> 
+                         <SiteQrActions site={site} />
+                       </div>
 
-                        <span className="text-[10px] text-gray-400">code: {site.code}</span>
-                      </div>
+                       <button
+                         onClick={() => copyUrl(site.code || site.id)}
+                         className="bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-bold px-4 py-2 rounded-sm transition border border-neutral-300"
+                       >
+                         URLコピー
+                       </button>
+                    </div>
+
+                  </div>
+
+                  {/* 右上：編集ボタン・更新日 */}
+                  <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-3 shrink-0 md:ml-4">
+                    {/* 編集ボタンを大きく・黒文字で・枠線ありにして目立たせる */}
+                    <button
+                      onClick={() => window.location.href = `/admin/sites/${site.id}`}
+                      className="text-sm font-bold text-black border-2 border-black px-4 py-1.5 rounded-sm hover:bg-black hover:text-white transition-colors"
+                    >
+                      編集
+                    </button>
+                    
+                    <div className="text-[10px] text-neutral-400 text-right font-mono mt-1">
+                      <div>Updated: {fmtDate(site.updated_at)}</div>
                     </div>
                   </div>
-                </li>
-              );
-            })
+
+                </div>
+              </div>
+            );
+          })}
+          
+          {/* データなし */}
+          {sortedSites.length === 0 && !loading && (
+            <div className="py-12 text-center text-neutral-400">
+              表示する現場がありません
+            </div>
           )}
-        </ul>
+        </div>
       </div>
     </div>
   );
