@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
@@ -40,6 +40,7 @@ const MANAGERS = [
 ];
 
 export default function EditSitePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
   const [site, setSite] = useState<Site | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,16 +51,18 @@ export default function EditSitePage({ params }: { params: Promise<{ id: string 
   useEffect(() => {
     const load = async () => {
       try {
-        const { id } = await params;
+        // ★修正ポイント：URLを本来の /api/admin/sites/ID に戻しました
         const res = await fetch(`/api/admin/sites/${id}`, { cache: 'no-store' });
         if (!res.ok) {
            setLoading(false);
            return;
         }
         const json = await res.json();
+        
+        // サーバーから返ってくる { site: { ... } } を正しく取り出す
         const siteData = json.site || json.data || json;
         
-        if (siteData) {
+        if (siteData && siteData.id) {
           if (!Array.isArray(siteData.drawing_url)) siteData.drawing_url = siteData.drawing_url ? [siteData.drawing_url] : [];
           if (!Array.isArray(siteData.drawing_names)) siteData.drawing_names = [];
           setSite(siteData);
@@ -71,7 +74,7 @@ export default function EditSitePage({ params }: { params: Promise<{ id: string 
       }
     };
     load();
-  }, [params]);
+  }, [id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     if (!site) return;
@@ -128,15 +131,37 @@ export default function EditSitePage({ params }: { params: Promise<{ id: string 
     }
   };
 
+  // ★修正ポイント：削除も本来の住所（URL）に送るように戻しました
+  const handleDelete = async () => {
+    if (!window.confirm('本当にこの現場を削除しますか？\n（この操作は取り消せません）')) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/sites/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        router.push('/admin');
+        router.refresh();
+      } else {
+        const err = await res.json();
+        alert(`削除に失敗しました: ${err.error || 'サーバーエラー'}`);
+      }
+    } catch (e) {
+      alert('通信エラーが発生しました');
+    }
+  };
+
   // 共通アップロード処理
   const uploadFileCore = async (file: File, field: 'drawing' | 'schedule') => {
-    if (!site) return;
+    if (!site || !site.id) return;
     
     const fileExt = file.name.split('.').pop();
     const fileNameBase = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
     const randomString = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(16).padStart(2, '0')).join('');
-    const shortId = site.id.slice(0, 8);
-    const fileName = `${shortId}_${field}_${randomString}.${fileExt}`;
+    const fileName = `${site.id.slice(0, 8)}_${field}_${randomString}.${fileExt}`;
 
     setUploading(field);
 
@@ -224,13 +249,12 @@ export default function EditSitePage({ params }: { params: Promise<{ id: string 
       <header className="bg-white border-b border-neutral-300 sticky top-0 z-20 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           
-          {/* ★ここ修正: 現場名を大きく表示 */}
           <div>
             <div className="text-xs font-bold text-neutral-500 mb-0.5">現場情報編集</div>
             <h1 className="text-xl font-bold tracking-tight text-neutral-900">
               {site.name || '(現場名未設定)'}
             </h1>
-            <div className="text-[10px] text-neutral-400 mt-0.5 font-mono">ID: {site.id.slice(0, 8)}...</div>
+            <div className="text-[10px] text-neutral-400 mt-0.5 font-mono">ID: {site.id ? site.id.slice(0, 8) : '---'}...</div>
           </div>
           
           <div className="flex gap-3">
@@ -292,26 +316,6 @@ export default function EditSitePage({ params }: { params: Promise<{ id: string 
                 className="w-full bg-yellow-50 border-2 border-yellow-200 p-3 rounded-sm text-sm h-32 text-neutral-800 font-bold" 
                 placeholder="ここに書いた内容は、公開ページの掲示板の一番上に固定表示されます。"
               />
-            </div>
-          </div>
-          
-          <div className="mt-8 border-t border-neutral-200 pt-6">
-            <h3 className="text-xs font-bold text-neutral-500 mb-3">🗑️ 削除されたメッセージ履歴 (管理者のみ閲覧可)</h3>
-            <div className="bg-neutral-100 border border-neutral-200 rounded-sm p-4 h-32 overflow-y-auto space-y-3">
-              {site.board_data && site.board_data.filter((m: any) => m.deleted).length > 0 ? (
-                site.board_data.filter((m: any) => m.deleted).map((msg: any, i: number) => (
-                  <div key={i} className="text-xs border-b border-neutral-200 pb-2 last:border-0">
-                    <div className="flex gap-2 text-neutral-400 mb-1">
-                      <span className="font-bold">{msg.author}</span>
-                      <span>{new Date(msg.date).toLocaleString('ja-JP')}</span>
-                      <span className="text-red-400 font-mono ml-auto">削除済</span>
-                    </div>
-                    <div className="text-neutral-600">{msg.content}</div>
-                  </div>
-                ))
-              ) : (
-                 <div className="text-xs text-neutral-400 text-center py-4">削除履歴なし</div>
-              )}
             </div>
           </div>
         </section>
@@ -401,17 +405,16 @@ export default function EditSitePage({ params }: { params: Promise<{ id: string 
           </div>
         </section>
 
-        {/* 4. 非公開リンク */}
-        <section className="bg-neutral-200 border border-neutral-300 p-6 rounded-sm">
-          <h2 className="text-sm font-bold text-neutral-700 border-l-4 border-neutral-600 pl-3 mb-6">4. 管理者用リンク (非公開)</h2>
-          <div>
-            <label className="block text-xs font-bold text-neutral-600 mb-1">見積書リンク</label>
-            <div className="flex gap-2">
-              <input type="text" name="quote_url" value={site.quote_url || ''} onChange={handleChange} placeholder="https://..." className="flex-1 bg-white border border-neutral-300 p-2.5 rounded-sm text-xs" />
-              {site.quote_url && <a href={site.quote_url} target="_blank" className="bg-white border border-neutral-400 text-neutral-700 px-3 py-2 rounded-sm text-xs font-bold flex items-center">開く</a>}
-            </div>
-          </div>
-        </section>
+        {/* 削除ボタン */}
+        <div className="mt-12 pt-8 border-t border-neutral-300 text-center">
+           <button
+             type="button"
+             onClick={handleDelete}
+             className="text-sm text-red-500 font-bold hover:text-red-700 underline"
+           >
+             この現場を削除する
+           </button>
+        </div>
 
       </div>
     </div>

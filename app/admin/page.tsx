@@ -283,22 +283,21 @@ export default function AdminDashboard() {
                   {/* メイン情報 */}
                   <div className="flex-1 min-w-0">
                     
-                    {/* ★ここ修正: スマホでは縦並び(block)、PCでは横並び(flex) */}
+                    {/* ★修正：ドット（丸ぽち）をタイトルの左側に固定 */}
                     <div className="mb-2 block md:flex md:items-center md:gap-3">
-                       {/* 現場名 (スマホでは1行目) */}
+                       
+                       {/* 現場名エリア */}
                        <div className="flex items-center gap-2 mb-2 md:mb-0">
-                          {/* スマホ用ドット */}
-                          <span className={`md:hidden w-2.5 h-2.5 rounded-full ${style.dot} shrink-0`} />
+                          {/* 丸ぽちを先頭に配置 */}
+                          <span className={`w-2.5 h-2.5 rounded-full ${style.dot} shrink-0`} />
+                          
                           <h3 className="text-lg font-bold text-neutral-900 leading-tight">
                             {site.name}
                           </h3>
                        </div>
 
-                       {/* ステータス・担当者 (スマホでは2行目) */}
+                       {/* ステータス・担当者バッジ */}
                        <div className="flex items-center gap-2">
-                           {/* PC用ドット */}
-                           <span className={`hidden md:block w-2.5 h-2.5 rounded-full ${style.dot}`} />
-                           
                            <span className={`px-2 py-0.5 text-[10px] font-bold border rounded-sm ${style.badge} whitespace-nowrap`}>
                              {site.status || '未設定'}
                            </span>
@@ -311,7 +310,7 @@ export default function AdminDashboard() {
                        </div>
                     </div>
 
-                    {/* 住所・施主・元請 */}
+                    {/* 住所・施主・元請 (ここはそのまま) */}
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600 font-medium mb-2">
                       <span className="flex items-center gap-1">
                         <span className="text-neutral-400">住所:</span> {site.address || '-'}
@@ -358,9 +357,8 @@ export default function AdminDashboard() {
 
                   </div>
 
-                  {/* 右上：編集ボタン・更新日 */}
+                  {/* 右側：編集ボタン */}
                   <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-3 shrink-0 md:ml-4 border-t md:border-t-0 pt-4 md:pt-0 mt-2 md:mt-0 w-full md:w-auto">
-                    {/* 編集ボタン */}
                     <button
                       onClick={() => window.location.href = `/admin/sites/${site.id}`}
                       className="text-sm font-bold text-black border-2 border-black px-6 py-1.5 rounded-sm hover:bg-black hover:text-white transition-colors"
