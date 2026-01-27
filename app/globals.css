@@ -2,11 +2,10 @@
   color-scheme: light;
 }
 
-body {
-  background-color: #F4F4F4;
-  color: #171717;
+html, body {
+  background-color: #F4F4F4 !important; /* !important で強制 */
+  color: #171717 !important;             /* 文字色も黒で強制 */
 }
-@import "tailwindcss";
 
 :root {
   --background: #ffffff;

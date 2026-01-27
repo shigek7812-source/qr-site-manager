@@ -19,11 +19,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ja">
-      <head>
-        <meta name="color-scheme" content="light" />
-      </head>
+    // ★ここを変更！ className="light" と style={{ colorScheme: 'light' }} を追加
+    <html lang="ja" className="light" style={{ colorScheme: 'light' }}>
       <body>{children}</body>
     </html>
+    
   );
 }
