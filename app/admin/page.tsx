@@ -15,6 +15,10 @@ type Site = {
   designer_name?: string | null;
   manager_name?: string | null;
   notes?: string | null;
+  // URL系
+  quote_url?: string | null;
+  drawing_url?: string | null;
+  schedule_url?: string | null;
   updated_at?: string | null;
 };
 
@@ -53,7 +57,6 @@ export default function AdminDashboard() {
   const [sortKey, setSortKey] = useState<SortKey>('updated');
   const [preferredManager, setPreferredManager] = useState<string>('');
   
-  // 型定義を追加してエラー回避
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -154,7 +157,6 @@ export default function AdminDashboard() {
           </div>
           
           <div className="flex items-center gap-3">
-            {/* ソート */}
             <div className="relative">
               <select 
                 value={sortKey}
@@ -168,7 +170,6 @@ export default function AdminDashboard() {
               <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 text-[10px]">▼</div>
             </div>
 
-            {/* 担当者絞り込み */}
             <div className="relative">
               <select
                 value={preferredManager}
@@ -198,40 +199,42 @@ export default function AdminDashboard() {
                 key={site.id} 
                 className="py-6 px-3 hover:bg-black/5 transition-colors group"
               >
+                {/* スマホレイアウト対応: flex-colにして縦並びに強くする */}
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                   
                   {/* メイン情報 */}
                   <div className="flex-1 min-w-0">
                     
-                    {/* 1行目 */}
-                    <div className="flex items-center gap-3 mb-2">
-                       <span className={`w-2.5 h-2.5 rounded-full ${style.dot}`} />
+                    {/* 1行目: ステータス行 */}
+                    <div className="flex flex-wrap items-center gap-3 mb-2">
+                       <span className={`w-2.5 h-2.5 rounded-full ${style.dot} shrink-0`} />
                        
-                       <h3 className="text-lg font-bold text-neutral-900 leading-none">
+                       {/* 現場名 (折り返し許可: break-words) */}
+                       <h3 className="text-lg font-bold text-neutral-900 leading-tight break-words">
                          {site.name}
                        </h3>
 
-                       <span className={`px-2 py-0.5 text-[10px] font-bold border rounded-sm ${style.badge}`}>
+                       <span className={`px-2 py-0.5 text-[10px] font-bold border rounded-sm whitespace-nowrap ${style.badge}`}>
                          {site.status || '未設定'}
                        </span>
 
                        {managerLabel && (
-                         <span className="px-2 py-0.5 text-[10px] font-bold bg-neutral-200 text-neutral-700 rounded-sm">
+                         <span className="px-2 py-0.5 text-[10px] font-bold bg-neutral-200 text-neutral-700 rounded-sm whitespace-nowrap">
                            {managerLabel}
                          </span>
                        )}
                     </div>
 
-                    {/* 2行目 (No.を削除) */}
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600 font-medium mb-2">
+                    {/* 2行目: 詳細情報 (折り返し許可) */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600 font-medium mb-3">
                       <span className="flex items-center gap-1">
-                        <span className="text-neutral-400">住所:</span> {site.address || '-'}
+                        <span className="text-neutral-400">住所:</span> <span className="break-words">{site.address || '-'}</span>
                       </span>
-                      <span className="text-neutral-300">|</span>
+                      <span className="text-neutral-300 hidden sm:inline">|</span>
                       <span className="flex items-center gap-1">
                         <span className="text-neutral-400">施主:</span> {site.client_name || '-'}
                       </span>
-                      <span className="text-neutral-300">|</span>
+                      <span className="text-neutral-300 hidden sm:inline">|</span>
                       <span className="flex items-center gap-1">
                         <span className="text-neutral-400">元請:</span> {site.contractor_name || '-'}
                       </span>
@@ -239,21 +242,35 @@ export default function AdminDashboard() {
                     
                     {/* メモ */}
                     {site.notes && (
-                      <div className="text-xs text-neutral-400 pl-4 border-l-2 border-neutral-200 mt-1">
+                      <div className="text-xs text-neutral-400 pl-4 border-l-2 border-neutral-200 mt-1 mb-3 break-words">
                         {site.notes}
                       </div>
                     )}
 
-                    {/* ボタン群 */}
-                    <div className="flex flex-wrap items-center gap-3 mt-4 opacity-80 group-hover:opacity-100 transition-opacity">
+                    {/* ボタン群 (flex-wrapで折り返し) */}
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 opacity-90 group-hover:opacity-100 transition-opacity">
+                       
                        <a 
                          href={`/s/${site.code || site.id}`} 
                          target="_blank"
                          rel="noopener noreferrer"
-                         className="bg-black hover:bg-neutral-800 text-white text-xs font-bold px-4 py-2 rounded-sm transition border border-black"
+                         className="bg-black hover:bg-neutral-800 text-white text-xs font-bold px-4 py-2 rounded-sm transition border border-black whitespace-nowrap"
                        >
                          公開ページ
                        </a>
+
+                       {/* ★追加: 見積りボタン (URLがある時だけ表示) */}
+                       {site.quote_url && (
+                         <a
+                           href={site.quote_url}
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           className="bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-bold px-4 py-2 rounded-sm transition border border-neutral-300 flex items-center gap-1 whitespace-nowrap"
+                         >
+                           <svg className="w-3 h-3 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                           見積書
+                         </a>
+                       )}
 
                        <div className="h-[34px]"> 
                          <SiteQrActions site={site} />
@@ -261,7 +278,7 @@ export default function AdminDashboard() {
 
                        <button
                          onClick={() => copyUrl(site.code || site.id)}
-                         className="bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-bold px-4 py-2 rounded-sm transition border border-neutral-300"
+                         className="bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-bold px-4 py-2 rounded-sm transition border border-neutral-300 whitespace-nowrap"
                        >
                          URLコピー
                        </button>
@@ -270,17 +287,17 @@ export default function AdminDashboard() {
                   </div>
 
                   {/* 右上：編集ボタン・更新日 */}
-                  <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-3 shrink-0 md:ml-4">
-                    {/* 編集ボタンを大きく・黒文字で・枠線ありにして目立たせる */}
+                  <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-3 shrink-0 md:ml-4 w-full md:w-auto mt-2 md:mt-0">
                     <button
                       onClick={() => window.location.href = `/admin/sites/${site.id}`}
-                      className="text-sm font-bold text-black border-2 border-black px-4 py-1.5 rounded-sm hover:bg-black hover:text-white transition-colors"
+                      className="text-sm font-bold text-black border-2 border-black px-5 py-1.5 rounded-sm hover:bg-black hover:text-white transition-colors whitespace-nowrap"
                     >
                       編集
                     </button>
                     
-                    <div className="text-[10px] text-neutral-400 text-right font-mono mt-1">
-                      <div>Updated: {fmtDate(site.updated_at)}</div>
+                    <div className="text-[10px] text-neutral-400 text-right font-mono flex gap-2 md:block">
+                      <span className="md:hidden">Updated:</span>
+                      <div>{fmtDate(site.updated_at)}</div>
                     </div>
                   </div>
 
