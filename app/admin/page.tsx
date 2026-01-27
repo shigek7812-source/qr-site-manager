@@ -110,24 +110,55 @@ export default function AdminDashboard() {
   const sortedSites: Site[] = useMemo(() => {
     let list = [...sites];
 
+    // 1. 検索フィルター
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       list = list.filter(site => {
-        const managerLabel = MANAGER_MAP[site.manager_name || ''] || '';
+        // ※ MANAGER_MAP が未定義の場合は site.manager_name をそのまま使う安全策を入れています
+        const managerLabel = (typeof MANAGER_MAP !== 'undefined' ? MANAGER_MAP[site.manager_name || ''] : site.manager_name) || '';
         return (
           (site.name && site.name.toLowerCase().includes(term)) ||
           (site.address && site.address.toLowerCase().includes(term)) ||
           (site.client_name && site.client_name.toLowerCase().includes(term)) ||
           (site.contractor_name && site.contractor_name.toLowerCase().includes(term)) ||
-          (managerLabel && managerLabel.includes(term))
+          (managerLabel && managerLabel.toLowerCase().includes(term))
         );
       });
     }
 
+    // 2. 並び替え
     if (sortKey === 'code') list.sort((a, b) => (a.code ?? '').localeCompare(b.code ?? ''));
-    if (sortKey === 'status') list.sort((a, b) => (a.status ?? '').localeCompare(b.status ?? ''));
+    
+    // ★ここを修正！指定の順番通りに並べる＆エラー解消
+    if (sortKey === 'status') {
+      // 並べたい順番を定義
+      const STATUS_ORDER = [
+        '見積中',
+        'プランニング中',
+        '見積提出済',
+        '着工準備中',
+        '工事中',
+        '手直し',
+        '追加工事',
+        '完了',
+        '保留',
+        'その他',
+      ];
+
+      const getPriority = (s: string | null | undefined) => {
+        const status = s || ''; // null対策：空っぽなら空文字扱いにする
+        const index = STATUS_ORDER.indexOf(status);
+        
+        // リストにあるものはその番号順、リストにない（未設定など）は一番後ろ(999)へ
+        return index !== -1 ? index : 999;
+      };
+
+      list.sort((a, b) => getPriority(a.status) - getPriority(b.status));
+    }
+
     if (sortKey === 'updated') list.sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
 
+    // 3. 担当者優先ソート
     if (preferredManager) {
       list.sort((a, b) => {
         const am = a.manager_name === preferredManager;
