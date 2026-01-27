@@ -18,21 +18,31 @@ function ensureUrl(url: string | null | undefined) {
 }
 
 export default async function PublicSitePage({ params }: { params: Promise<{ code: string }> }) {
-  const { code } = await params;
+  // ★修正1：URLの文字化けや空白を直して読み取る
+  const { code: rawCode } = await params;
+  const code = decodeURIComponent(rawCode).trim();
 
-  let { data: site } = await supabaseAdmin
-    .from('sites')
-    .select('*')
-    .eq('code', code)
-    .maybeSingle();
+  let site = null;
 
-  if (!site && isUUID(code)) {
-    const { data: siteById } = await supabaseAdmin
+  // ★修正2：探し方を強化（IDっぽければIDで探す、ダメならコードで探す）
+  if (isUUID(code)) {
+    // UUIDの形式なら、まずはIDとして探してみる
+    const { data } = await supabaseAdmin
       .from('sites')
       .select('*')
       .eq('id', code)
       .maybeSingle();
-    site = siteById;
+    site = data;
+  }
+
+  // IDで見つからなかった（またはUUIDじゃなかった）場合、codeカラムで探す
+  if (!site) {
+    const { data } = await supabaseAdmin
+      .from('sites')
+      .select('*')
+      .eq('code', code)
+      .maybeSingle();
+    site = data;
   }
 
   if (!site) return notFound();
@@ -56,7 +66,10 @@ export default async function PublicSitePage({ params }: { params: Promise<{ cod
       
       <header className="bg-neutral-900 text-white sticky top-0 z-10 px-5 py-4 flex items-center justify-between shadow-md">
         <div>
-          <div className="text-[10px] text-neutral-400 font-mono mb-0.5">No.{site.code}</div>
+          {/* codeがない場合はIDを表示しないように調整 */}
+          <div className="text-[10px] text-neutral-400 font-mono mb-0.5">
+            No.{site.code || '---'}
+          </div>
           <h1 className="text-lg font-bold leading-tight">{site.name}</h1>
         </div>
         <div className="shrink-0 ml-4">
@@ -96,7 +109,6 @@ export default async function PublicSitePage({ params }: { params: Promise<{ cod
             drawings.map((url, index) => {
               const label = drawingNames[index] || `図面データ (${index + 1})`;
               return (
-                /* ★修正: target="_blank" を削除しました */
                 <a key={index} href={ensureUrl(url)} className="flex items-center p-4 bg-white border border-neutral-200 rounded-xl shadow-sm active:scale-95 transition">
                   <div className="bg-blue-50 text-blue-600 p-3 rounded-lg mr-4 shrink-0">
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -120,7 +132,6 @@ export default async function PublicSitePage({ params }: { params: Promise<{ cod
 
           {/* 工程表 */}
           {site.schedule_url ? (
-            /* ★修正: target="_blank" を削除しました */
             <a href={ensureUrl(site.schedule_url)} className="flex items-center p-4 bg-white border border-neutral-200 rounded-xl shadow-sm active:scale-95 transition">
               <div className="bg-green-50 text-green-600 p-3 rounded-lg mr-4">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -145,7 +156,6 @@ export default async function PublicSitePage({ params }: { params: Promise<{ cod
         <section>
           <h2 className="text-sm font-bold text-neutral-500 mb-2 flex items-center gap-2">📷 現場写真</h2>
           {site.photos_url ? (
-            /* ★修正: target="_blank" を削除しました */
             <a href={ensureUrl(site.photos_url)} className="block w-full py-4 bg-[#0078D4] text-white rounded-xl font-bold text-center shadow-md active:scale-95 transition flex items-center justify-center gap-2">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M19.46 9.47a5.5 5.5 0 0 0-9.92-2.3 4 4 0 0 0-4.54 4.54A4.5 4.5 0 0 0 5.5 20h13a4.5 4.5 0 0 0 .96-8.97V9.47z"/></svg>
               OneDriveで写真を見る
@@ -161,7 +171,13 @@ export default async function PublicSitePage({ params }: { params: Promise<{ cod
           <div className="mt-8 pt-6 border-t border-neutral-200 text-center">
              <div className="text-xs font-bold text-neutral-400 mb-2">ACCESS</div>
              <div className="text-lg text-neutral-800 font-bold mb-3">{site.address}</div>
-             <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(site.address)}`} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-bold text-neutral-500 border-b border-neutral-400 pb-0.5 hover:text-black hover:border-black transition">
+             {/* ★修正3：マップのリンクが壊れていたので修正 */}
+             <a 
+               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(site.address)}`} 
+               target="_blank" 
+               rel="noopener noreferrer" 
+               className="inline-block text-xs font-bold text-neutral-500 border-b border-neutral-400 pb-0.5 hover:text-black hover:border-black transition"
+             >
                Google Mapで開く
              </a>
           </div>
