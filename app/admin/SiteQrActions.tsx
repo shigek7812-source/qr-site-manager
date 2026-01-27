@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import QRCode from 'react-qr-code';
 
 type Site = {
   id: string;
@@ -11,42 +11,131 @@ type Site = {
 
 export default function SiteQrActions({ site }: { site: Site }) {
   const [isOpen, setIsOpen] = useState(false);
-  const shareUrl = `${window.location.origin}/s/${site.code || site.id}`;
+  const [downloading, setDownloading] = useState(false);
+  
+  // 現場ごとのURL
+  const url = `${window.location.origin}/s/${site.code || site.id}`;
+
+  const handleDownload = () => {
+    setDownloading(true);
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const qrSvg = document.getElementById(`qr-svg-${site.id}`);
+
+    if (!ctx || !qrSvg) {
+      setDownloading(false);
+      return;
+    }
+
+    const size = 600; 
+    const padding = 40;
+    const headerHeight = 120;
+    const footerHeight = 80; // 少し高さを調整
+    
+    canvas.width = size;
+    canvas.height = size + headerHeight + footerHeight;
+
+    // 1. 背景白
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 2. 現場名 (上部・黒・太字)
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 40px sans-serif'; // 普通のゴシック体
+    ctx.textAlign = 'center';
+    const displayName = site.name.length > 12 ? site.name.substring(0, 12) + '...' : site.name;
+    ctx.fillText(displayName, size / 2, 70);
+    
+    // No. (上部・グレー)
+    ctx.fillStyle = '#666666';
+    ctx.font = '24px sans-serif';
+    ctx.fillText(`No. ${site.code}`, size / 2, 110);
+
+    // 3. 署名 "by Reglanz" (下部) - ★ここを修正★
+    // 色を薄く(グレー)、フォントを普通に、サイズは控えめに
+    ctx.fillStyle = '#999999'; 
+    ctx.font = '24px sans-serif'; 
+    // 少し字間を空けて整える
+    ctx.letterSpacing = '2px';
+    ctx.fillText('by Reglanz', size / 2, canvas.height - 30);
+
+    // 4. QR描画
+    const svgData = new XMLSerializer().serializeToString(qrSvg);
+    const img = new Image();
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+
+    img.onload = () => {
+      const qrSize = size - (padding * 2);
+      ctx.drawImage(img, padding, headerHeight, qrSize, qrSize);
+
+      const link = document.createElement('a');
+      link.download = `${site.name}_QR.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      setDownloading(false);
+    };
+  };
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        {/* QRコードボタン：白背景・グレー枠に変更 */}
-        <button
-          onClick={() => setIsOpen(true)}
-          className="bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-300 text-xs font-bold px-4 py-2 rounded-sm transition flex items-center gap-1.5"
-        >
-          <svg className="w-3.5 h-3.5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zM5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8" />
-          </svg>
-          QRコピー
-        </button>
-      </div>
+      {/* 一覧画面のボタン (変更なし) */}
+      <button
+        onClick={() => setIsOpen(true)}
+        className="bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-bold px-4 py-2 rounded-sm transition border border-neutral-300 h-full whitespace-nowrap"
+      >
+        QR保存
+      </button>
 
-      {/* QRコードモーダル（デザインをモノトーンに調整） */}
+      {/* ポップアップ画面 */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setIsOpen(false)}>
-          <div className="bg-white p-6 rounded-sm shadow-2xl max-w-sm w-full text-center space-y-5" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-neutral-800">
-              共有用QRコード
-            </h3>
-            <div className="bg-white p-2 rounded border border-neutral-200 inline-block">
-              <QRCodeSVG value={shareUrl} size={200} />
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" 
+          onClick={() => setIsOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm relative" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              onClick={() => setIsOpen(false)} 
+              className="absolute top-3 right-3 text-neutral-400 hover:text-black p-2"
+            >
+              ✕
+            </button>
+
+            <div className="text-center space-y-4 py-4">
+              <div>
+                <h3 className="text-xl font-bold text-neutral-900 leading-tight mb-1">{site.name}</h3>
+                <p className="text-xs font-mono text-neutral-400">No. {site.code}</p>
+              </div>
+
+              <div className="bg-white inline-block">
+                <div className="border-4 border-black p-2 rounded-lg">
+                  <QRCode
+                    id={`qr-svg-${site.id}`}
+                    value={url}
+                    size={200}
+                    level="H"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                {/* ★ここを修正: プレビュー表示も薄く普通のフォントに */}
+                <p className="text-sm text-neutral-400 font-sans tracking-wider">
+                  by Reglanz
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-neutral-500 break-all px-2 font-mono bg-neutral-100 py-2 rounded">
-              {shareUrl}
-            </p>
-            <div className="pt-2">
+
+            <div className="mt-4 pt-4 border-t border-neutral-100">
               <button
-                onClick={() => setIsOpen(false)}
-                className="w-full py-3 rounded-sm bg-black text-white font-bold text-sm hover:bg-neutral-800 transition"
+                onClick={handleDownload}
+                disabled={downloading}
+                className="w-full bg-neutral-900 hover:bg-black text-white font-bold py-3 rounded-lg shadow-md transition flex items-center justify-center gap-2"
               >
-                閉じる
+                {downloading ? '作成中...' : '画像を保存する'}
               </button>
             </div>
           </div>
